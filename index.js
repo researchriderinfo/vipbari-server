@@ -98,9 +98,7 @@ async function run() {
       const cursor = productsCollection.find({});
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}:${
-        process.env.PORT || 5000
-      }`;
+      const baseUrl = `${req.protocol}://${req.hostname}`;
       // If you're running the server on a custom domain, replace `req.hostname` with your domain
 
       const productsWithImageUrl = products.map((product) => ({
