@@ -62,9 +62,7 @@ async function run() {
       const cursor = productsCollection.find({ category: { $regex: regex } }); // use regex pattern in query
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}:${
-        process.env.PORT || 5000
-      }`;
+      const baseUrl = `${req.protocol}://${req.hostname}`;
       const productsWithImageUrl = products.map((product) => ({
         ...product,
         imageUrl: `${baseUrl}/uploads/images/${product.image}`,
@@ -80,9 +78,8 @@ async function run() {
       const cursor = productsCollection.find(query);
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}:${
-        process.env.PORT || 5000
-      }`;
+      const baseUrl = `${req.protocol}://${req.hostname}
+      `;
       // If you're running the server on a custom domain, replace `req.hostname` with your domain
 
       const productsWithImageUrl = products.map((product) => ({
