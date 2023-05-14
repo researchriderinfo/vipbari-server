@@ -62,7 +62,11 @@ async function run() {
       const cursor = productsCollection.find({ category: { $regex: regex } }); // use regex pattern in query
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}`;
+      // const baseUrl = `${req.protocol}://${req.hostname}`;
+      const baseUrl = `${req.protocol}://${req.hostname}:${
+        process.env.PORT || 5000
+      }`;
+
       const productsWithImageUrl = products.map((product) => ({
         ...product,
         imageUrl: `${baseUrl}/uploads/images/${product.image}`,
@@ -78,8 +82,10 @@ async function run() {
       const cursor = productsCollection.find(query);
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}
-      `;
+      // const baseUrl = `${req.protocol}://${req.hostname}`;
+      const baseUrl = `${req.protocol}://${req.hostname}:${
+        process.env.PORT || 5000
+      }`;
       // If you're running the server on a custom domain, replace `req.hostname` with your domain
 
       const productsWithImageUrl = products.map((product) => ({
@@ -88,6 +94,24 @@ async function run() {
       }));
 
       res.json(productsWithImageUrl);
+    });
+
+    // Get a single product by _id
+    app.get("/products/:id", async (req, res) => {
+      const { id } = req.params;
+      const product = await productsCollection.findOne({ _id: ObjectId(id) });
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      // add the following code block to update the image URL
+      const baseUrl = `${req.protocol}://${req.hostname}:${
+        process.env.PORT || 5000
+      }`;
+      product.imageUrl = `${baseUrl}/uploads/images/${product.image}`;
+
+      res.json(product);
     });
 
     //Getting all Products
@@ -95,7 +119,10 @@ async function run() {
       const cursor = productsCollection.find({});
       const products = await cursor.toArray();
 
-      const baseUrl = `${req.protocol}://${req.hostname}`;
+      // const baseUrl = `${req.protocol}://${req.hostname}`;
+      const baseUrl = `${req.protocol}://${req.hostname}:${
+        process.env.PORT || 5000
+      }`;
       // If you're running the server on a custom domain, replace `req.hostname` with your domain
 
       const productsWithImageUrl = products.map((product) => ({
@@ -105,6 +132,7 @@ async function run() {
 
       res.json(productsWithImageUrl);
     });
+
     // ADD PRODUCT
     app.post("/product", upload.single("image"), async (req, res) => {
       try {
