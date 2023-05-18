@@ -5,6 +5,7 @@ const app = express();
 const { MongoClient } = require("mongodb");
 const { ObjectId } = require("mongodb");
 require("dotenv").config();
+// const axios = require("axios");
 const port = process.env.PORT || 5000;
 const Joi = require("joi");
 
@@ -48,6 +49,83 @@ async function run() {
     const reviewsCollection = database.collection("Review");
     const ordersCollection = database.collection("Orders");
     const usersCollection = database.collection("users");
+    const cartCollection = database.collection("AddCart");
+
+    // POST API for storing user cart items
+    app.post("/cart", async (req, res) => {
+      try {
+        const cartItem = {
+          email: req.body.email,
+          price: req.body.price,
+          productName: req.body.productName,
+          marketPrice: req.body.marketPrice,
+          discountPercent: req.body.discountPercent,
+          description: req.body.description,
+          image: req.body.image,
+        };
+
+        console.log(cartItem);
+
+        const result = await cartCollection.insertOne(cartItem);
+        res.json(result);
+      } catch (error) {
+        console.error("Error storing cart item:", error);
+        res.status(500).json({ error: "Failed to store cart item" });
+      }
+    });
+
+    //GET API for searching cart items using user email
+    app.get("/cart/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { email };
+        const cursor = cartCollection.find(query);
+        const cartItems = await cursor.toArray();
+
+        //Include image url in cart items
+        const baseUrl = `${req.protocol}://${req.hostname}:${
+          process.env.PORT || 5000
+        }`;
+        const cartItemsWithImageUrl = cartItems.map((item) => ({
+          ...item,
+          imageUrl: `${baseUrl}/uploads/images/${item.image}`,
+        }));
+
+        res.json(cartItemsWithImageUrl);
+      } catch {
+        console.error("Error Searching cart items:", error);
+        res.status(500).json({ error: "Failed to search cart items" });
+      }
+    });
+
+    //ADD USERS
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const result = await usersCollection.insertOne(user);
+      console.log(result);
+      res.json(result);
+    });
+
+    //ADD GOOGLE USERS
+    app.put("/users", async (req, res) => {
+      const user = req.body;
+      const filter = { email: user.email };
+      const options = { upsert: true };
+      const updateDoc = { $set: user };
+      const result = await usersCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.json(result);
+    });
+
+    //Get User
+    app.get("/users", async (req, res) => {
+      const cursor = usersCollection.find({});
+      const users = await cursor.toArray();
+      res.json(users);
+    });
 
     //Getting all Products categories
     app.get("/categories", async (req, res) => {
@@ -175,6 +253,75 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(400).json({ message: err.message });
+      }
+    });
+
+    // ADD REVIEW
+    app.post("/review", async (req, res) => {
+      const review = req.body;
+      const result = await reviewsCollection.insertOne(review);
+      res.json(result);
+    });
+
+    //GET REVIEW
+    app.get("/reviews", async (req, res) => {
+      const cursor = reviewsCollection.find({});
+      const reviews = await cursor.toArray();
+      res.json(reviews);
+    });
+
+    // GET MY ORDERS
+    app.get("/myOrders/:email", async (req, res) => {
+      console.log(req.params.email);
+      const result = await ordersCollection
+        .find({ email: req.params.email })
+        .toArray();
+      res.send(result);
+    });
+
+    //CHECK ADMIN OR NOT
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let isAdmin = false;
+      if (user?.role === "admin") {
+        isAdmin = true;
+      }
+      res.json({ admin: isAdmin });
+    });
+
+    // MAKE ADMIN
+    app.put("/users/admin", async (req, res) => {
+      const user = req.body;
+      console.log("put", user);
+      const filter = { email: user.email };
+      const updateDoc = { $set: { role: "admin" } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.json(result);
+    });
+
+    //GET API for searching cart items using user email
+    app.get("/cart/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { email };
+        const cursor = cartCollection.find(query);
+        const cartItems = await cursor.toArray();
+
+        //Include image url in cart items
+        const baseUrl = `${req.protocol}://${req.hostname}:${
+          process.env.PORT || 5000
+        }`;
+        const cartItemsWithImageUrl = cartItems.map((item) => ({
+          ...item,
+          imageUrl: `${baseUrl}/uploads/images/${item.image}`,
+        }));
+
+        res.json(cartItemsWithImageUrl);
+      } catch {
+        console.error("Error Searching cart items:", error);
+        res.status(500).json({ error: "Failed to search cart items" });
       }
     });
   } finally {
