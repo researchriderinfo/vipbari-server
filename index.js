@@ -50,6 +50,32 @@ async function run() {
     const ordersCollection = database.collection("Orders");
     const usersCollection = database.collection("users");
     const cartCollection = database.collection("AddCart");
+    const categoryCollection = database.collection("Category");
+
+    // POST API for storing category and sub-category
+    app.post("/categories", async (req, res) => {
+      try {
+        const { category, subcategories } = req.body;
+
+        // Validate the request body
+        if (!category || !Array.isArray(subcategories)) {
+          throw new Error("Invalid category and sub-category data");
+        }
+
+        // Store the category and sub-categories in the database
+        const result = await categoryCollection.insertOne({
+          category,
+          subcategories,
+        });
+
+        res.json(result);
+      } catch (error) {
+        console.error("Error storing category and sub-category:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to store category and sub-category" });
+      }
+    });
 
     // POST API for storing user cart items
     app.post("/cart", async (req, res) => {
@@ -220,6 +246,7 @@ async function run() {
           marketPrice: req.body.marketPrice,
           discountPercent: req.body.discountPercent,
           category: req.body.category,
+          subcategories: req.body.subcategories,
           description: req.body.description,
           image: req.file.filename,
         };
