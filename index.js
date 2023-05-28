@@ -52,87 +52,15 @@ async function run() {
     const cartCollection = database.collection("AddCart");
     const categoryCollection = database.collection("Category");
 
-    // POST API for storing category and sub-category
-    app.post("/categories", async (req, res) => {
-      try {
-        const { category, subcategories } = req.body;
-
-        // Validate the request body
-        if (!category || !Array.isArray(subcategories)) {
-          throw new Error("Invalid category and sub-category data");
-        }
-
-        // Store the category and sub-categories in the database
-        const result = await categoryCollection.insertOne({
-          category,
-          subcategories,
-        });
-
-        res.json(result);
-      } catch (error) {
-        console.error("Error storing category and sub-category:", error);
-        res
-          .status(500)
-          .json({ error: "Failed to store category and sub-category" });
-      }
-    });
-
-    // POST API for storing user cart items
-    app.post("/cart", async (req, res) => {
-      try {
-        const cartItem = {
-          email: req.body.email,
-          price: req.body.price,
-          productName: req.body.productName,
-          marketPrice: req.body.marketPrice,
-          discountPercent: req.body.discountPercent,
-          description: req.body.description,
-          image: req.body.image,
-        };
-
-        console.log(cartItem);
-
-        const result = await cartCollection.insertOne(cartItem);
-        res.json(result);
-      } catch (error) {
-        console.error("Error storing cart item:", error);
-        res.status(500).json({ error: "Failed to store cart item" });
-      }
-    });
-
-    //GET API for searching cart items using user email
-    app.get("/cart/:email", async (req, res) => {
-      try {
-        const email = req.params.email;
-        const query = { email };
-        const cursor = cartCollection.find(query);
-        const cartItems = await cursor.toArray();
-
-        //Include image url in cart items
-        const baseUrl = `${req.protocol}://${req.hostname}:${
-          process.env.PORT || 5000
-        }`;
-        const cartItemsWithImageUrl = cartItems.map((item) => ({
-          ...item,
-          imageUrl: `${baseUrl}/uploads/images/${item.image}`,
-        }));
-
-        res.json(cartItemsWithImageUrl);
-      } catch {
-        console.error("Error Searching cart items:", error);
-        res.status(500).json({ error: "Failed to search cart items" });
-      }
-    });
-
-    //ADD USERS
+    //----------------------------------------User API Start--------------------------------//
+    //1. ADD USERS
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await usersCollection.insertOne(user);
-      console.log(result);
       res.json(result);
     });
 
-    //ADD GOOGLE USERS
+    //2. ADD GOOGLE USERS
     app.put("/users", async (req, res) => {
       const user = req.body;
       const filter = { email: user.email };
@@ -146,20 +74,41 @@ async function run() {
       res.json(result);
     });
 
-    //Get User
+    //3. Get User
     app.get("/users", async (req, res) => {
       const cursor = usersCollection.find({});
       const users = await cursor.toArray();
       res.json(users);
     });
+    //----------------------------------------User API End----------------------------------//
 
-    //Getting all Products categories
-    app.get("/categories", async (req, res) => {
-      const categories = await productsCollection.distinct("category");
-      res.json(categories);
+    //----------------------------------------Admin API Start----------------------------------//
+
+    //1. CHECK ADMIN OR NOT
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let isAdmin = false;
+      if (user?.role === "admin") {
+        isAdmin = true;
+      }
+      res.json({ admin: isAdmin });
     });
 
-    //Search product via category
+    //2. MAKE ADMIN
+    app.put("/users/admin", async (req, res) => {
+      const user = req.body;
+      const filter = { email: user.email };
+      const updateDoc = { $set: { role: "admin" } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.json(result);
+    });
+    //----------------------------------------Admin API End----------------------------------//
+
+    //----------------------------------------Products API Start-----------------------------//
+
+    //1. Search product via category
     app.get("/products/category/:category", async (req, res) => {
       const category = decodeURIComponent(req.params.category);
       const regex = new RegExp(category, "i"); // create regex pattern with case-insensitive flag
@@ -179,7 +128,7 @@ async function run() {
       res.json(productsWithImageUrl);
     });
 
-    //Getting single product
+    //2. Getting single product
     app.get("/products/search/:name", async (req, res) => {
       const name = req.params.name;
       const query = { name: { $regex: new RegExp(name), $options: "i" } };
@@ -200,7 +149,7 @@ async function run() {
       res.json(productsWithImageUrl);
     });
 
-    // Get a single product by _id
+    //3. Get a single product by _id
     app.get("/products/:id", async (req, res) => {
       const { id } = req.params;
       const product = await productsCollection.findOne({ _id: ObjectId(id) });
@@ -218,7 +167,7 @@ async function run() {
       res.json(product);
     });
 
-    //Getting all Products
+    //4. Getting all Products
     app.get("/products", async (req, res) => {
       const cursor = productsCollection.find({});
       const products = await cursor.toArray();
@@ -237,7 +186,7 @@ async function run() {
       res.json(productsWithImageUrl);
     });
 
-    // ADD PRODUCT
+    //5. ADD PRODUCT
     app.post("/product", upload.single("image"), async (req, res) => {
       try {
         const product = {
@@ -263,7 +212,7 @@ async function run() {
       }
     });
 
-    // DELETE PRODUCT BY ID
+    //6. DELETE PRODUCT BY ID
     app.delete("/product/:id", async (req, res) => {
       try {
         const productId = req.params.id;
@@ -283,52 +232,128 @@ async function run() {
       }
     });
 
-    // ADD REVIEW
+    //7. SEARCH PRODUCT BY CATEGORY AND SUBCATEGORIES
+
+    app.get("/search", async (req, res) => {
+      try {
+        let { category, subcategory } = req.query;
+
+        const query = {};
+
+        if (category) {
+          query.category = { $regex: category, $options: "i" };
+        }
+
+        if (subcategory) {
+          query.subcategories = { $regex: subcategory, $options: "i" };
+        }
+
+        const products = await productsCollection.find(query).toArray();
+
+        const baseUrl = `${req.protocol}://${req.hostname}:${
+          process.env.PORT || 5000
+        }`;
+
+        const productsWithImageUrl = products.map((product) => ({
+          ...product,
+          imageUrl: `${baseUrl}/uploads/images/${product.image}`,
+        }));
+
+        res.status(200).json(productsWithImageUrl);
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .json({ error: "An error occurred while searching for products." });
+      }
+    });
+    //----------------------------------------Products API End-------------------------------//
+
+    //----------------------------------------Categories API Start-----------------------------//
+    //1. POST API for storing category and sub-category
+    app.post("/categories", async (req, res) => {
+      try {
+        const { category, subcategories } = req.body;
+
+        // Validate the request body
+        if (!category || !Array.isArray(subcategories)) {
+          throw new Error("Invalid category and sub-category data");
+        }
+
+        // Store the category and sub-categories in the database
+        const result = await categoryCollection.insertOne({
+          category,
+          subcategories,
+        });
+
+        res.json(result);
+      } catch (error) {
+        console.error("Error storing category and sub-category:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to store category and sub-category" });
+      }
+    });
+
+    //2. Getting all Products categories
+    app.get("/categories", async (req, res) => {
+      const cursor = categoryCollection.find({});
+      const categories = await cursor.toArray();
+      res.json(categories);
+    });
+    //----------------------------------------Categories API End-------------------------------//
+
+    //----------------------------------------Order API Start-------------------------------//
+    //1. GET MY ORDERS
+    app.get("/myOrders/:email", async (req, res) => {
+      const result = await ordersCollection
+        .find({ email: req.params.email })
+        .toArray();
+      res.send(result);
+    });
+    //----------------------------------------Order API End-------------------------------//
+
+    //----------------------------------------Review API Start-------------------------------//
+
+    //1. ADD REVIEW
     app.post("/review", async (req, res) => {
       const review = req.body;
       const result = await reviewsCollection.insertOne(review);
       res.json(result);
     });
 
-    //GET REVIEW
+    //2. GET REVIEW
     app.get("/reviews", async (req, res) => {
       const cursor = reviewsCollection.find({});
       const reviews = await cursor.toArray();
       res.json(reviews);
     });
 
-    // GET MY ORDERS
-    app.get("/myOrders/:email", async (req, res) => {
-      console.log(req.params.email);
-      const result = await ordersCollection
-        .find({ email: req.params.email })
-        .toArray();
-      res.send(result);
-    });
+    //----------------------------------------Review API End-------------------------------//
 
-    //CHECK ADMIN OR NOT
-    app.get("/users/:email", async (req, res) => {
-      const email = req.params.email;
-      const query = { email: email };
-      const user = await usersCollection.findOne(query);
-      let isAdmin = false;
-      if (user?.role === "admin") {
-        isAdmin = true;
+    //----------------------------------------Add to Cart API Start-----------------------------//
+    // 1. POST API for storing user cart items
+    app.post("/cart", async (req, res) => {
+      try {
+        const cartItem = {
+          email: req.body.email,
+          price: req.body.price,
+          productName: req.body.productName,
+          marketPrice: req.body.marketPrice,
+          discountPercent: req.body.discountPercent,
+          description: req.body.description,
+          image: req.body.image,
+        };
+
+        const result = await cartCollection.insertOne(cartItem);
+        res.json(result);
+      } catch (error) {
+        console.error("Error storing cart item:", error);
+        res.status(500).json({ error: "Failed to store cart item" });
       }
-      res.json({ admin: isAdmin });
     });
 
-    // MAKE ADMIN
-    app.put("/users/admin", async (req, res) => {
-      const user = req.body;
-      console.log("put", user);
-      const filter = { email: user.email };
-      const updateDoc = { $set: { role: "admin" } };
-      const result = await usersCollection.updateOne(filter, updateDoc);
-      res.json(result);
-    });
-
-    //GET API for searching cart items using user email
+    // 2. GET API for searching cart items using user email
     app.get("/cart/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -351,6 +376,45 @@ async function run() {
         res.status(500).json({ error: "Failed to search cart items" });
       }
     });
+
+    // DELETE API for removing a single item from cartCollection
+    app.delete("/remove/:itemId", async (req, res) => {
+      try {
+        const itemId = req.params.itemId;
+        const query = { _id: ObjectId(itemId) };
+        const result = await cartCollection.deleteOne(query);
+
+        if (result.deletedCount === 1) {
+          res.json({ message: "Item deleted successfully" });
+        } else {
+          res.status(404).json({ error: "Item not found" });
+        }
+      } catch (error) {
+        console.error("Error deleting cart item:", error);
+        res.status(500).json({ error: "Failed to delete cart item" });
+      }
+    });
+
+    // DELETE API for removing all items from cartCollection for a specific user
+
+    app.delete("/allRemove/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { email };
+        const result = await cartCollection.deleteMany(query);
+
+        if (result.deletedCount > 0) {
+          res.json({ message: "All items deleted successfully" });
+        } else {
+          res.status(404).json({ error: "No items found for the user" });
+        }
+      } catch (error) {
+        console.error("Error deleting cart items:", error);
+        res.status(500).json({ error: "Failed to delete cart items" });
+      }
+    });
+
+    //----------------------------------------Add to Cart API End-------------------------------//
   } finally {
     //   await client.close();
   }
