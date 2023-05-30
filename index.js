@@ -9,9 +9,13 @@ require("dotenv").config();
 const port = process.env.PORT || 5000;
 const Joi = require("joi");
 
+//BKASH ROUTER
+const bkashRouter = require("./routes/bkashRouter");
+
 app.use(cors());
 app.use(express.json());
 app.use("/uploads/images", express.static(__dirname + "/public/upload/images"));
+app.use("/api/bkash", bkashRouter);
 
 const uri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@ac-bd9xspy-shard-00-00.lzib7iv.mongodb.net:27017,ac-bd9xspy-shard-00-01.lzib7iv.mongodb.net:27017,ac-bd9xspy-shard-00-02.lzib7iv.mongodb.net:27017/?ssl=true&replicaSet=atlas-tb07us-shard-0&authSource=admin&retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {
@@ -30,17 +34,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-//Required Product Form
-const productSchema = Joi.object({
-  name: Joi.string().required(),
-  price: Joi.number().required(),
-  marketPrice: Joi.number().optional(),
-  discountPercent: Joi.number(),
-  category: Joi.string().required(),
-  description: Joi.string().required(),
-  image: Joi.string(),
-});
-
 async function run() {
   try {
     await client.connect();
@@ -51,6 +44,7 @@ async function run() {
     const usersCollection = database.collection("users");
     const cartCollection = database.collection("AddCart");
     const categoryCollection = database.collection("Category");
+    const addressCollection = database.collection("UserAddress");
 
     //----------------------------------------User API Start--------------------------------//
     //1. ADD USERS
@@ -415,6 +409,25 @@ async function run() {
     });
 
     //----------------------------------------Add to Cart API End-------------------------------//
+
+    app.post("/address", async (req, res) => {
+      const { email, address } = req.body;
+
+      const result = await addressCollection.insertOne({ email, address });
+      res.json(result);
+    });
+
+    // Error handling middleware
+    app.use((err, req, res, next) => {
+      console.log(err.stack);
+      res.status(500).send("Something Wrong !!!");
+    });
+
+    // Not found route
+    app.use((req, res, next) => {
+      console.log("Sorry, Not Found !!!");
+      res.status(404).send("Sorry, Not Found !!!");
+    });
   } finally {
     //   await client.close();
   }
