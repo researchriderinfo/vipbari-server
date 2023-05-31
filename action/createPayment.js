@@ -13,7 +13,7 @@ const createPayment = async (req) => {
       headers: await authHeaders(),
       body: JSON.stringify({
         mode: "0011",
-        payerReference: " ",
+        payerReference: "vipbari",
         callbackURL: bkashConfig.backend_callback_url,
         amount: req.amount ? req.amount : 1,
         currency: "BDT",
@@ -23,7 +23,7 @@ const createPayment = async (req) => {
     });
     const createResult = await createResopnse.json();
 
-    console.log({ createResult });
+    console.log("222", createResult);
 
     return createResult;
   } catch (e) {
