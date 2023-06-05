@@ -413,8 +413,29 @@ async function run() {
     app.post("/address", async (req, res) => {
       const { email, address } = req.body;
 
-      const result = await addressCollection.insertOne({ email, address });
+      // Check if the address already exists for the given email
+      const existingAddress = await addressCollection.findOne({
+        email,
+      });
+      if (existingAddress) {
+        return res.status(400).json({ error: "Address already added." });
+      }
+
+      const result = await addressCollection.updateOne(
+        { email },
+        { $set: { address } },
+        { upsert: true }
+      );
       res.json(result);
+    });
+
+    app.get("/userAddress", async (req, res) => {
+      const { email } = req.query; // Assuming the email is passed as a query parameter
+
+      const cursor = addressCollection.find({ email }); // Find addresses matching the email
+      const addresses = await cursor.toArray();
+
+      res.json(addresses);
     });
 
     // Error handling middleware
@@ -427,6 +448,21 @@ async function run() {
     app.use((req, res, next) => {
       console.log("Sorry, Not Found !!!");
       res.status(404).send("Sorry, Not Found !!!");
+    });
+
+    // POST endpoint for inserting order data into ordersCollection
+    app.post("/api/orders", async (req, res) => {
+      const orderData = req.body;
+
+      try {
+        const result = await ordersCollection.insertOne(orderData);
+        res.json(result);
+      } catch (error) {
+        console.error("Error inserting order data:", error);
+        res
+          .status(500)
+          .json({ error: "An error occurred while inserting order data." });
+      }
     });
   } finally {
     //   await client.close();

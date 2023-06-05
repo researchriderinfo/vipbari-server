@@ -15,10 +15,7 @@ const checkout = async (req, res) => {
     console.log(e);
   }
 };
-
 const bkashCallback = async (req, res) => {
-  console.log(req.query);
-
   try {
     if (req.query.status === "success") {
       let response = await executePayment(req.query.paymentID);
@@ -31,12 +28,16 @@ const bkashCallback = async (req, res) => {
 
       if (response.statusCode && response.statusCode === "0000") {
         console.log("Payment Successful !!! ");
-        // save response in your db
+        // Save response in your database
+        await ordersCollection.updateOne(
+          { "paymentInfo.paymentID": req.query.paymentID },
+          { $set: { "paymentInfo.paymentStatus": "Completed" } }
+        );
         res.redirect(
           `${bkashConfig.frontend_success_url}?data=${response.statusMessage}`
         );
       } else {
-        console.log(" statusCode !== 0000 Payment Failed !!!");
+        console.log("Payment Failed !!!");
         res.redirect(
           `${bkashConfig.frontend_fail_url}?data=${response.statusMessage}`
         );
@@ -45,8 +46,8 @@ const bkashCallback = async (req, res) => {
       console.log("Payment Failed !!!");
       res.redirect(`${bkashConfig.frontend_fail_url}`);
     }
-  } catch (e) {
-    console.log(e);
+  } catch (error) {
+    console.error(error);
     // Handle any other errors here
     res.status(500).json({ error: "An error occurred" });
   }
