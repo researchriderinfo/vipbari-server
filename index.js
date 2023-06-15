@@ -45,6 +45,8 @@ async function run() {
     const cartCollection = database.collection("AddCart");
     const categoryCollection = database.collection("Category");
     const addressCollection = database.collection("UserAddress");
+    const paymentResponse = database.collection("PaymentResponse");
+    app.locals.database = database;
 
     //----------------------------------------User API Start--------------------------------//
     //1. ADD USERS
@@ -414,19 +416,20 @@ async function run() {
       const { email, address } = req.body;
 
       // Check if the address already exists for the given email
-      const existingAddress = await addressCollection.findOne({
-        email,
-      });
-      if (existingAddress) {
-        return res.status(400).json({ error: "Address already added." });
-      }
+      const existingAddress = await addressCollection.findOne({ email });
 
-      const result = await addressCollection.updateOne(
-        { email },
-        { $set: { address } },
-        { upsert: true }
-      );
-      res.json(result);
+      if (existingAddress) {
+        // Update the existing address with the new data
+        const result = await addressCollection.updateOne(
+          { email },
+          { $set: { address } }
+        );
+        res.json(result);
+      } else {
+        // Add a new address if it doesn't already exist
+        const result = await addressCollection.insertOne({ email, address });
+        res.json(result);
+      }
     });
 
     app.get("/userAddress", async (req, res) => {
@@ -436,6 +439,65 @@ async function run() {
       const addresses = await cursor.toArray();
 
       res.json(addresses);
+    });
+
+    // POST endpoint for inserting order data into ordersCollection
+    app.post("/api/orders", async (req, res) => {
+      const orderData = req.body;
+      console.log(orderData);
+
+      try {
+        const result = await ordersCollection.insertOne(orderData);
+        res.json(result);
+      } catch (error) {
+        console.error("Error inserting order data:", error);
+        res
+          .status(500)
+          .json({ error: "An error occurred while inserting order data." });
+      }
+    });
+
+    //  POST responseData to PaymentResponse collection
+    app.post("/api/payment/response", async (req, res) => {
+      const responseData = req.body.responseData;
+
+      console.log({ responseData });
+
+      try {
+        const result = await paymentResponse.insertOne({ responseData });
+        res.json(result);
+      } catch (error) {
+        console.error("Error saving responseData:", error);
+        res.status(500).json({ error: "Failed to save responseData" });
+      }
+    });
+
+    // Getting Order Data
+    app.get("/product/orders", async (req, res) => {
+      try {
+        const paymentResponseData = await paymentResponse.find().toArray();
+        const ordersData = await ordersCollection.find().toArray();
+
+        // Add the productImg URL to each product in the combined data
+        const baseUrl = `${req.protocol}://${req.hostname}:${
+          process.env.PORT || 5000
+        }`;
+        const combinedDataWithImageUrl = {
+          BkashOrders: paymentResponseData.map((order) => ({
+            ...order,
+            productImg: `${baseUrl}/uploads/images/${order.productImg}`,
+          })),
+          CashOnOrders: ordersData.map((order) => ({
+            ...order,
+            productImg: `${baseUrl}/uploads/images/${order.productImg}`,
+          })),
+        };
+
+        res.json(combinedDataWithImageUrl);
+      } catch (error) {
+        console.error("Error retrieving data:", error);
+        res.status(500).json({ error: "Failed to retrieve data" });
+      }
     });
 
     // Error handling middleware
@@ -450,20 +512,9 @@ async function run() {
       res.status(404).send("Sorry, Not Found !!!");
     });
 
-    // POST endpoint for inserting order data into ordersCollection
-    app.post("/api/orders", async (req, res) => {
-      const orderData = req.body;
-
-      try {
-        const result = await ordersCollection.insertOne(orderData);
-        res.json(result);
-      } catch (error) {
-        console.error("Error inserting order data:", error);
-        res
-          .status(500)
-          .json({ error: "An error occurred while inserting order data." });
-      }
-    });
+    module.exports = {
+      paymentResponse,
+    };
   } finally {
     //   await client.close();
   }

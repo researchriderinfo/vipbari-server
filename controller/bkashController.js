@@ -8,48 +8,131 @@ const refundTransaction = require("../action/refundTransaction.js");
 const checkout = async (req, res) => {
   try {
     console.log("amount", req.body);
+
+    // Extract user and product information from req.body
+    const {
+      userEmail,
+      productId,
+      amount,
+      quantity,
+      address,
+      productName,
+      productImg,
+      price,
+    } = req.body;
+
+    // Perform the payment transaction
     const createResult = await createPayment(req.body);
     console.log("Create Successful !!! ");
     res.json(createResult);
-  } catch (e) {
-    console.log(e);
+
+    // Save checkout response in the database along with user and product information
+    const database = req.app.locals.database;
+    const paymentResponse = database.collection("PaymentResponse");
+
+    await paymentResponse.insertOne({
+      paymentID: createResult.paymentID,
+      paymentCreateTime: createResult.paymentCreateTime,
+      transactionStatus: createResult.transactionStatus,
+      paymentStatus: "Checkout",
+      userEmail: userEmail,
+      productId: productId,
+      productName: productName,
+      productImg: productImg,
+      quantity: quantity,
+      price: price,
+      address: address,
+      amount: amount,
+      merchantInvoiceNumber: createResult.merchantInvoiceNumber,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred" });
   }
 };
+
 const bkashCallback = async (req, res) => {
   try {
     if (req.query.status === "success") {
-      let response = await executePayment(req.query.paymentID);
+      const paymentID = req.query.paymentID;
+      const database = req.app.locals.database;
+      const paymentResponse = database.collection("PaymentResponse");
 
-      console.log("bkashCallback res", response);
+      // Check if any previous transaction with the same payment ID has a status of "Completed"
+      const existingTransaction = await paymentResponse.findOne({
+        paymentID: paymentID,
+        paymentStatus: "Completed",
+      });
+
+      if (existingTransaction) {
+        console.log("Duplicate transaction: ", paymentID);
+        return res.redirect(
+          `${bkashConfig.frontend_success_url}?data=Duplicate Transaction`
+        );
+      }
+
+      let response = await executePayment(paymentID);
+
+      console.log("bkashCallback", response);
 
       if (response.message) {
-        response = await queryPayment(req.query.paymentID);
+        response = await queryPayment(paymentID);
       }
 
       if (response.statusCode && response.statusCode === "0000") {
         console.log("Payment Successful !!! ");
-        // Save response in your database
-        await ordersCollection.updateOne(
-          { "paymentInfo.paymentID": req.query.paymentID },
-          { $set: { "paymentInfo.paymentStatus": "Completed" } }
+
+        await paymentResponse.updateOne(
+          { paymentID: paymentID },
+          {
+            $set: {
+              paymentStatus: "Completed",
+              responseData: response,
+            },
+          }
         );
-        res.redirect(
+
+        return res.redirect(
           `${bkashConfig.frontend_success_url}?data=${response.statusMessage}`
         );
       } else {
         console.log("Payment Failed !!!");
-        res.redirect(
+
+        await paymentResponse.updateOne(
+          { paymentID: paymentID },
+          {
+            $set: {
+              paymentStatus: "Failed",
+              responseData: response,
+            },
+          }
+        );
+
+        return res.redirect(
           `${bkashConfig.frontend_fail_url}?data=${response.statusMessage}`
         );
       }
     } else {
       console.log("Payment Failed !!!");
-      res.redirect(`${bkashConfig.frontend_fail_url}`);
+
+      const paymentID = req.query.paymentID;
+      const database = req.app.locals.database;
+      const paymentResponse = database.collection("PaymentResponse");
+
+      await paymentResponse.updateOne(
+        { paymentID: paymentID },
+        {
+          $set: {
+            paymentStatus: "Failed",
+          },
+        }
+      );
+
+      return res.redirect(`${bkashConfig.frontend_fail_url}`);
     }
   } catch (error) {
     console.error(error);
-    // Handle any other errors here
-    res.status(500).json({ error: "An error occurred" });
+    return res.status(500).json({ error: "An error occurred" });
   }
 };
 
